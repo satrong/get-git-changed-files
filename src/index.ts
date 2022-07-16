@@ -31,10 +31,17 @@ export async function override (options: OverrideOptions) {
     const filePath = options.transformFilePath ? options.transformFilePath(file.filepath) : file.filepath
     const destPath = path.join(options.syncDestDir, filePath)
 
-    if (file.type === 'deleted') {
-      await fs.rm(destPath, { force: true })
-    } else {
-      await fs.copyFile(path.join(options.gitDir, file.filepath), destPath)
+    try {
+      if (file.type === 'deleted') {
+        const stat = await fs.stat(destPath)
+        if (stat.isFile()) {
+          await fs.unlink(destPath)
+        }
+      } else {
+        await fs.copyFile(path.join(options.gitDir, file.filepath), destPath)
+      }
+    } catch(err) {
+      console.error(err)
     }
   }
 }
