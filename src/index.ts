@@ -36,9 +36,12 @@ export async function override (options: OverrideOptions) {
         const stat = await fs.stat(destPath)
         if (stat.isFile()) {
           await fs.unlink(destPath)
+          console.log(`deleted: ${destPath}`)
         }
       } else {
+        await fs.mkdir(path.dirname(destPath), { recursive: true })
         await fs.copyFile(path.join(options.gitDir, file.filepath), destPath)
+        console.log(`copy ${file.filepath} => ${destPath}`)
       }
     } catch(err) {
       console.error(err)
