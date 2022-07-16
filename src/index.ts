@@ -1,51 +1,40 @@
-const { exec, execSync } = require('child_process');
-const path = require('path');
-const readline = require('readline');
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import { getFilesByDate } from './git'
 
-class Git {
-    gitRoot: string;
+export * from './git'
 
-    constructor(gitRoot: string) {
-        this.gitRoot = gitRoot;
-    }
-
-    /**
-     * 根据commitid获取变动的文件
-     * @param commitid commit id
-     */
-    async getCommits(commitid: string) {
-        const stdout = await this.command(`cd ${this.gitRoot}`, `git diff-tree --no-commit-id --name-status --diff-filter=ACDMR -r ${commitid}`);
-        const files = stdout.split(/\n/).map((el: string) => el.split(/\s+/));
-        console.log(files)
-    }
-
-    command(...args: any): Promise<string> {
-        return new Promise((resolve, reject) => {
-            exec(args.join(' && '), (error: Error, stdout: string) => {
-                if (error) return reject(error);
-                resolve(stdout.trim());
-            });
-        });
-    }
+type OverrideOptions = {
+  /** 代码提交的开始时间 */
+  since: string;
+  /** 代码提交的截止时间 */
+  util?: string;
+  /** 目标 git 仓库的根目录 */
+  gitDir: string;
+  /** 获取文件变动列表后，需要将变动的文件同步到的目录 */
+  syncDestDir: string;
+  /** 在更新 syncDestDir 中的文件之前，处理路径 */
+  transformFilePath?: (filePath: string) => string;
 }
 
-// 不传commitid，则获取所有文件
-// function getChangedFiles(gitPath: string, commitid: string) {
-//     return new Promise((resolve, reject) => {
-//         const cmd = commitid ? `cd ${gitPath} && git diff-tree --no-commit-id --name-status --diff-filter=ACDMR -r ${commitid}` : 'git ls-files';
-//         exec(cmd, (error: Error, stdout: string) => {
-//             if (error) return reject(error);
-//             const files = stdout.trim().split(/\n/).map((el: string) => el.split(/\s+/));
-//             resolve(files);
-//         });
-//     });
-// }
+/**
+ * 获取指定时间段内的文件变动列表，并将变动的文件同步到指定目录
+ */
+export async function override (options: OverrideOptions) {
+  const files = await getFilesByDate({
+    since: options.since,
+    util: options.util,
+    cwd: options.gitDir
+  })
 
-// (async () => {
-//     const gitPath = path.join(__dirname, '../appstore/appstore-api')
-//     const files = await getChangedFiles(gitPath, 'e0e51616e320c1bf9f7706c336f682f7d7a1b06f');
-//     console.log(files);
-//     console.log(execSync(`cd ${gitPath} && git log --oneline`, { encoding: 'utf8' }));
-// })();
+  for (const file of files) {
+    const filePath = options.transformFilePath ? options.transformFilePath(file.filepath) : file.filepath
+    const destPath = path.join(options.syncDestDir, filePath)
 
-new Git(path.join(__dirname, '../../appstore/appstore-api')).getCommits('e0e51616e320c1bf9f7706c336f682f7d7a1b06f');
+    if (file.type === 'deleted') {
+      await fs.rm(destPath, { force: true })
+    } else {
+      await fs.copyFile(path.join(options.gitDir, file.filepath), destPath)
+    }
+  }
+}
