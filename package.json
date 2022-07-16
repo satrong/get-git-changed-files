@@ -1,6 +1,6 @@
 {
   "name": "get-git-changed-files",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Satrong <strong@foxmail.com>",
   "description": "Get git changed files by commit id or date time",
   "homepage": "https://github.com/satrong/get-git-changed-files",
