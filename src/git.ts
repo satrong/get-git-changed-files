@@ -13,6 +13,10 @@ const mapped = {
   'R': 'renamed'
 } as const
 
+function strLineToArr (str: string) {
+  return str.trim().split('\n').filter(Boolean)
+}
+
 /**
  * 根据 commit id 获取文件变动列表
  */
@@ -20,7 +24,7 @@ export async function getFilesByCommitId (commitId: string, cwd: string) {
   // Added (A), Copied (C), Deleted (D), Modified (M), Renamed (R)
   const result = await bash('git', ['diff-tree', '--no-commit-id', '--name-status', '--diff-filter=ACDMR', '-r', commitId], cwd)
 
-  return result.trim().split('\n').map(el => {
+  return strLineToArr(result).map(el => {
     const [type, filepath] = el.split(/\s+/) as [keyof typeof mapped, string]
     return { type: mapped[type], filepath }
   })
@@ -30,8 +34,10 @@ export async function getFilesByCommitId (commitId: string, cwd: string) {
  * 根据日期获取文件变动列表
  */
 export async function getFilesByDate ({ since, util, cwd }: { since: string; util?: string; cwd: string }) {
-  const result = await bash('git', ['log', '--oneline', '--format=%H', `--since=${since}`, util ? `--util=${util}` : ''], cwd)
-  const commitIds = result.trim().split('\n').reverse()
+  const args = ['log', '--oneline', '--format=%H', `--since=${since}`]
+  if (util) args.push(`--util=${util}`)
+  const result = await bash('git', args, cwd)
+  const commitIds = strLineToArr(result).reverse()
 
   const store = new Map<string, TFileInfo>()
 
